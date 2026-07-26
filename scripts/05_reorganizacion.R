@@ -1,10 +1,10 @@
-_reorganizacion.R
+#_reorganizacion.R
 
-Esta es la prueba conceptual
+#Esta es la prueba conceptual
 
-Si después del disturbio observamos aumento de ciertos fenotipos, podremos decir:
+#Si después del disturbio observamos aumento de ciertos fenotipos, podremos decir:
 
-El ambiente no generó la diversidad; reorganizó una diversidad existente.
+#El ambiente no generó la diversidad; reorganizó una diversidad existente.
 
 ###############################################################
 # MPER 1.0
@@ -98,8 +98,6 @@ for(g in 1:generaciones){
 
   
   historial_post[[g]] <- bacterias
-
-
 
   #############################################################
   # Selección
