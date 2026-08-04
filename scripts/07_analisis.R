@@ -4,6 +4,100 @@
 ## y visualización básica de la colonia / campos
 ## ============================================================
 
+source("scripts/06_genetica_cuantitativa.R")
+
+#' Extrae datos de choque del objeto `sim` devuelto por `simular_hca()`
+#'
+#' @param sim lista devuelta por `simular_hca()`
+#' @return lista con paso de introducción, N0, g_bar0 y parámetros clave
+sim_datos_shock <- function(sim) {
+  intro <- sim$paso_introduccion
+  idx_intro <- which(sim$resumen$paso == intro)
+  if (length(idx_intro) == 0) {
+    stop("No se encontró el paso de introducción en sim$resumen$paso")
+  }
+  list(
+    intro = intro,
+    idx_intro = idx_intro,
+    N0 = sim$resumen$n_ocupados[idx_intro],
+    g_bar0 = sim$resumen$g_bar[idx_intro],
+    theta0 = sim$parametros$theta0,
+    theta1 = sim$parametros$theta1,
+    omega2 = sim$parametros$omega2,
+    sigma_e2 = if (!is.null(sim$parametros$sigma_e)) sim$parametros$sigma_e^2 else NA_real_
+  )
+}
+
+#' Compara la trayectoria de N_t simulada con la predicción analítica de Caja 3
+#'
+#' @param sim lista devuelta por `simular_hca()`
+#' @param Wmax aptitud máxima en la predicción analítica
+#' @param sigma_g2 varianza genética aditiva asumida
+#' @param sigma_e2 varianza ambiental asumida
+#' @param omega2 ancho^2 de la selección estabilizadora (por defecto extraído de sim)
+#' @param d0 desviación inicial del óptimo (theta1 - g_bar0) o valor explícito
+#' @return data.frame con pasos post-shock, N_sim y N_analitico
+comparar_Nt_caja3 <- function(sim, Wmax = 1, sigma_g2, sigma_e2,
+                              omega2 = sim$parametros$omega2,
+                              d0 = NULL) {
+  datos <- sim_datos_shock(sim)
+  if (is.null(d0)) {
+    d0 <- datos$theta1 - datos$g_bar0
+  }
+  idx_post <- which(sim$resumen$paso >= datos$intro)
+  t <- sim$resumen$paso[idx_post] - datos$intro
+  data.frame(
+    paso = sim$resumen$paso[idx_post],
+    t = t,
+    N_sim = sim$resumen$n_ocupados[idx_post],
+    N_analitico = Nt_analitico_qg(t, datos$N0, Wmax,
+                                   omega2, sigma_g2, sigma_e2, d0)
+  )
+}
+
+#' Compara la trayectoria del valor genético medio con la predicción analítica de Caja 3
+#'
+#' @param sim lista devuelta por `simular_hca()`
+#' @param k tasa de cambio del óptimo (0 para shock abrupto)
+#' @param sigma_g2 varianza genética aditiva asumida
+#' @param sigma_e2 varianza ambiental asumida
+#' @param omega2 ancho^2 de la selección estabilizadora (por defecto extraído de sim)
+#' @return data.frame con pasos post-shock, g_bar simulada y g_bar analítica
+comparar_gbar_caja3 <- function(sim, k = 0, sigma_g2, sigma_e2,
+                                omega2 = sim$parametros$omega2) {
+  datos <- sim_datos_shock(sim)
+  idx_post <- which(sim$resumen$paso >= datos$intro)
+  t <- sim$resumen$paso[idx_post] - datos$intro
+  data.frame(
+    paso = sim$resumen$paso[idx_post],
+    t = t,
+    g_bar_sim = sim$resumen$g_bar[idx_post],
+    g_bar_analitico = gbar_analitico_qg(t, k, sigma_g2, sigma_e2, omega2, datos$g_bar0)
+  )
+}
+
+#' Extrae tiempos de persistencia empíricos de una lista de réplicas HCA
+#'
+#' @param replicas lista devuelta por `simular_hca_replicas()`
+#' @return data.frame con replica, tiempo_persistencia, extinguio
+comparar_persistencia_empirica <- function(replicas) {
+  tiempos_persistencia_empiricos(replicas)
+}
+
+#' Calcula la dimensión fractal del estado y devuelve también la tabla de conteos
+#'
+#' @param estado matriz binaria de ocupación
+#' @param tamanos vector de tamaños de caja a probar
+#' @return lista con `tabla`, `ajuste`, y `dimension`
+calcular_dimension_fractal <- function(estado, tamanos = c(2, 4, 5, 8, 10, 16, 20)) {
+  if (sum(estado == 1L, na.rm = TRUE) == 0) {
+    return(list(tabla = data.frame(tamano = tamanos, N_cajas = rep(0L, length(tamanos))),
+                ajuste = NULL,
+                dimension = NA_real_))
+  }
+  dimension_fractal(estado, tamanos)
+}
+
 #' Dimensión fractal por conteo de cajas (box-counting)
 #'
 #' @param estado matriz binaria de ocupación
@@ -83,17 +177,28 @@ snapshot_a_df <- function(estado, N, resist, paso = NA_integer_) {
 graficar_estado_hca <- function(estado, N, resist, archivo,
                                  titulo = "", variable = c("resist", "N"),
                                  point_size = 0.6, alpha = 0.7,
-                                 width = 600, height = 600) {
+                                 width = 600, height = 600,
+                                 mostrar_fractal = TRUE,
+                                 tamanos_fractal = c(2, 4, 5, 8, 10, 16, 20)) {
   variable <- match.arg(variable)
   df <- snapshot_a_df(estado, N, resist)
 
   etiqueta_leyenda <- if (variable == "resist") "Resistencia" else "Nutriente N"
+  subtitulo <- NULL
+  if (mostrar_fractal) {
+    df_fractal <- calcular_dimension_fractal(estado, tamanos_fractal)
+    subtitulo <- if (!is.na(df_fractal$dimension)) {
+      paste0("Dim fractal: ", round(df_fractal$dimension, 3))
+    } else {
+      "Dim fractal: NA"
+    }
+  }
 
   p <- ggplot(df, aes(x = x, y = y, colour = .data[[variable]])) +
     geom_point(size = point_size, alpha = alpha) +
     scale_colour_viridis_c(option = "plasma", name = etiqueta_leyenda) +
     coord_fixed() +
-    labs(title = titulo, x = "Posición X", y = "Posición Y") +
+    labs(title = titulo, subtitle = subtitulo, x = "Posición X", y = "Posición Y") +
     theme_minimal()
 
   ggsave(archivo, plot = p, width = width, height = height,
@@ -132,7 +237,9 @@ animar_historial_hca <- function(historial, archivo_gif = "figuras/evolucion.gif
                                   archivo_mp4 = "figuras/evolucion.mp4",
                                   variable = c("resist", "N"),
                                   fps = 10, width = 600, height = 600,
-                                  point_size = 0.6, alpha = 0.7) {
+                                  point_size = 0.6, alpha = 0.7,
+                                  mostrar_fractal = TRUE,
+                                  tamanos_fractal = c(2, 4, 5, 8, 10, 16, 20)) {
   variable <- match.arg(variable)
 
   df_all <- do.call(rbind, lapply(historial, function(s) {
@@ -153,13 +260,23 @@ animar_historial_hca <- function(historial, archivo_gif = "figuras/evolucion.gif
   for (i in seq_along(historial)) {
     s <- historial[[i]]
     df_i <- snapshot_a_df(s$estado, s$N, s$resist, paso = s$paso)
+    subtitulo <- NULL
+    if (mostrar_fractal) {
+      df_fractal <- calcular_dimension_fractal(s$estado, tamanos_fractal)
+      subtitulo <- if (!is.na(df_fractal$dimension)) {
+        paste0("Dim fractal: ", round(df_fractal$dimension, 3))
+      } else {
+        "Dim fractal: NA"
+      }
+    }
 
     p_i <- ggplot(df_i, aes(x = x, y = y, colour = .data[[variable]])) +
       geom_point(size = point_size, alpha = alpha) +
       scale_colour_viridis_c(option = "plasma", name = etiqueta_leyenda,
                               limits = limites_color) +
       coord_fixed(xlim = limites_x, ylim = limites_y) +
-      labs(title = paste("Paso:", s$paso), x = "Posición X", y = "Posición Y") +
+      labs(title = paste("Paso:", s$paso), subtitle = subtitulo,
+           x = "Posición X", y = "Posición Y") +
       theme_minimal()
 
     archivo_i <- file.path(dir_temp, sprintf("frame_%04d.png", i))
@@ -185,9 +302,3 @@ animar_historial_hca <- function(historial, archivo_gif = "figuras/evolucion.gif
 
   invisible(NULL)
 }
-
-animar_historial_hca(
-  sim$historial,
-  archivo_gif = "plots/evolucion.gif",
-  archivo_mp4 = "plots/evolucion.mp4"
-)

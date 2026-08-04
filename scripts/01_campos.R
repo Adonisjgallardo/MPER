@@ -1,5 +1,5 @@
 ## ============================================================
-## 01_campos.R
+## 01_campos.R nb
 ## Inicialización de campos continuos sobre la retícula (HCA)
 ## Modelo nutriente-limitado puro (antibiótico se añade después)
 ## Condiciones de frontera: PERIÓDICAS (toroide)
