@@ -101,6 +101,7 @@ graficar_estado_hca <- function(estado, N, resist, archivo,
   invisible(p)
 }
 
+
 #' Anima la evolución completa de la colonia a partir del `historial`
 #' generado por `simular_hca()`, coloreando por resistencia (o nutriente).
 #' Mismo lenguaje visual que el script de referencia (geom_point +
@@ -184,3 +185,9 @@ animar_historial_hca <- function(historial, archivo_gif = "figuras/evolucion.gif
 
   invisible(NULL)
 }
+
+animar_historial_hca(
+  sim$historial,
+  archivo_gif = "plots/evolucion.gif",
+  archivo_mp4 = "plots/evolucion.mp4"
+)

@@ -38,3 +38,4 @@ PARAMS_RETICULA <- list(
   ny = 100,
   dx = 1
 )
+
