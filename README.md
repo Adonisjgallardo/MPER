@@ -1,7 +1,7 @@
 # MPER
 Adaptative Reorganization And Ecological Perturbation Model
 
-## Intro
+## Intro OLD
 
 MPER
 Modelo de Perturbación Ecológica y Reorganización Adaptativa
@@ -121,4 +121,42 @@ El fitness depende únicamente de la distancia euclidiana entre el fenotipo y el
 El disturbio modifica únicamente la dimensión $E_1$, representando un cambio ambiental localizado. 
 
 Se implementa una primera versión de un modelo evolutivo espacial diseñado para evaluar **si la resistencia antimicrobiana puede interpretarse como una reorganización adaptativa de diversidad fenotípica preexistente**, más que como la aparición de nuevos rasgos inducidos por el ambiente.
+
+## Intro nEW
+Execution pipeline (from 08_simulate.R)
+Initialisation (01_campos.R, 02_colonia.R)
+
+Create nutrient field N (uniform + optional noise).
+
+Create spatial antibiotic template (uniform/linear/radial).
+
+Seed a colony at the centre with initial genetic value g_inicial and environmental deviation e ~ N(0, σₑ²).
+
+Main time loop (inside simular_hca() in 05_motor.R)
+
+PDE updates (03_pde_difusion.R)
+
+Nutrient: diffusion + consumption by bacteria (Michaelis‑Menten).
+
+Antibiotic: diffusion + degradation + relaxation toward a time‑varying target (zero before shock, then a spatial gradient with optional temporal modulation).
+
+Environmental resampling (resortear_ambiente) – redraw e for every living cell each step (quantitative‑genetics assumption).
+
+Cellular automaton step (crecer_colonia in 04_ca_crecimiento.R)
+
+For each occupied cell (in random order):
+
+Compute local fitness w = exp(−(θ − z)²/(2ω²)).
+Determine death probability: p_mort = mort_base + mort_estres * A/(A+K_mort) * (1−w). If death occurs, the site is cleared.
+If alive, check if it can divide (requires local nutrient above threshold and space in von Neumann neighbourhood).
+Division probability: p_div = p_max * (N/(N+N_half)) * w. If successful, offspring inherits g with mutation (Gaussian) and gets a fresh e.
+Data recording – every guardar_cada steps a full snapshot (occupancy, N, A, phenotype) is stored; also a resumen data frame with population statistics.
+
+Post‑processing (07_analisis.R, 08_simulate.R)
+
+Compute fractal dimension of the colony (box‑counting).
+
+Compare simulated trajectories with analytical predictions (quantitative genetics, persistence times).
+
+Generate static plots and animations (ggplot2 + magick/av).
 

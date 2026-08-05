@@ -1,17 +1,32 @@
 ## ============================================================
-## 08_simulate.R
+## 08_simulate.R nb
 ## Script de ejecución de simulación, exportación de datos y
 ## generación de gráficas con métricas.
+## The goal is to simulate evolutionary rescue under an abrupt antibiotic shock, 
+## with quantitative genetics (heritable genetic value g, non‑heritable environmental deviation e, phenotype z = g + e) 
+##and stabilising selection around a local optimum θ(x,y,t) that depends on local antibiotic concentration
 ## ============================================================
 
-output_data_dir <- file.path("data", "simulation")
-output_plots_dir <- file.path("plots", "simulation")
+output_data_dir <- file.path("example", "data", "simulation")
+output_plots_dir <- file.path("example", "plots", "simulation")
 
 dir.create(output_data_dir, recursive = TRUE, showWarnings = FALSE)
 dir.create(output_plots_dir, recursive = TRUE, showWarnings = FALSE)
 
-source("../scripts/05_motor.R")
-source("../scripts/07_analisis.R")
+source("scripts/05_motor.R")
+source("scripts/07_analisis.R")
+
+# progress bar
+steps <- c(
+  "Ejecutar simulación",
+  "Guardar resúmenes y parámetros",
+  "Calcular dimensión fractal",
+  "Comparar contra analítica",
+  "Generar gráficos"
+)
+pb <- txtProgressBar(min = 0, max = length(steps), style = 3)
+setTxtProgressBar(pb, 0)
+flush.console()
 
 # Parámetros de ejemplo. Ajusta según necesites.
 params <- list(
@@ -48,17 +63,6 @@ params <- list(
   guardar_cada = 10,
   seed = 123
 )
-
-steps <- c(
-  "Ejecutar simulación",
-  "Guardar resúmenes y parámetros",
-  "Calcular dimensión fractal",
-  "Comparar contra analítica",
-  "Generar gráficos"
-)
-pb <- txtProgressBar(min = 0, max = length(steps), style = 3)
-setTxtProgressBar(pb, 0)
-flush.console()
 
 # Paso 1: ejecución de la simulación
 sim <- do.call(simular_hca, params)

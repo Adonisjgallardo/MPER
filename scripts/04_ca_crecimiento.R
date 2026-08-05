@@ -95,8 +95,10 @@ crecer_colonia <- function(estado, g, e, N, A,
   ocupados <- which(estado == 1L, arr.ind = TRUE)
   if (nrow(ocupados) > 0) {
     n_local <- N[ocupados]
-    fenotipo[ocupados] <- ifelse(n_local >= N_umbral, "proliferativo", "dormante")
-  }
+    fenotipo[ocupados] <- ifelse(
+      n_local >= N_umbral,
+      "proliferativo", 
+      "dormante")}
 
   n_nacimientos <- 0L; n_muertes <- 0L
 
@@ -112,7 +114,8 @@ crecer_colonia <- function(estado, g, e, N, A,
     if (estado[f, c] == 0L) next   # pudo haber muerto ya en este mismo paso
 
     # ---- 1) ¿Muere este paso? ----------------------------------
-    p_mort <- mort_base + mort_estres * (A[f, c] / (A[f, c] + K_mort)) * (1 - w[f, c])
+    mm_deathrate <- A[f, c] / (A[f, c] + K_mort)
+    p_mort <- mort_base + mort_estres * mm_deathrate * (1 - w[f, c])
     if (runif(1) < p_mort) {
       estado[f, c] <- 0L
       g[f, c] <- NA_real_
@@ -123,8 +126,8 @@ crecer_colonia <- function(estado, g, e, N, A,
 
     # ---- 2) ¿Divide este paso? ---------------------------------
     n_local <- N[f, c]
-    if (n_local < N_umbral) next   # dormante (limitado por nutriente): no divide
-
+    # dormante (limitado por nutriente): no divide
+    if (n_local < N_umbral) next   
     vecinos <- vecinos_von_neumann(f, c, nx, ny)
     libres  <- vecinos[estado[vecinos] == 0L, , drop = FALSE]
     if (nrow(libres) == 0) next
@@ -147,4 +150,11 @@ crecer_colonia <- function(estado, g, e, N, A,
 
   list(estado = estado, g = g, e = e, fenotipo = fenotipo,
        nacimientos = n_nacimientos, muertes = n_muertes)
+}
+
+
+# If available, compile and load the Rcpp implementation for speed
+if (requireNamespace("Rcpp", quietly = TRUE)) {
+  cpp_path <- file.path("src", "crecer_colonia.cpp")
+  if (file.exists(cpp_path)) Rcpp::sourceCpp(cpp_path)
 }
