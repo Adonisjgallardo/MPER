@@ -21,7 +21,6 @@ params <- list(
   N_half = 0.3,
   g_inicial = 0.1,
   sigma_e = 0.05,
-  sigma_g = 0.01,
   mutacion_sd = 0.02,
   paso_introduccion = 40,
   tipo_plantilla = "lineal",
