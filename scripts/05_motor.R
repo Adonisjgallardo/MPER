@@ -106,8 +106,8 @@ simular_hca <- function(nx = 100, ny = 100,
 
     n_ocupados <- sum(estado)
     n_frente   <- sum(res_ca$fenotipo == "proliferativo", na.rm = TRUE)
-    g_vivos    <- g[estado == 1L]
-    z_vivos    <- fenotipo_z(g, e)[estado == 1L]
+    g_vivos    <- g[estado]
+    z_vivos    <- fenotipo_z(g, e)[estado]
 
     resumen <- rbind(resumen, data.frame(
       paso = paso, n_ocupados = n_ocupados, n_frente = n_frente,

@@ -30,9 +30,9 @@ flush.console()
 
 # Parámetros de ejemplo. Ajusta según necesites.
 params <- list(
-  nx = 1200,
-  ny = 1200,
-  n_steps = 1000,
+  nx = 600,
+  ny = 600,
+  n_steps = 500,
   D = 0.18,
   k = 0.13,
   dt = 1,
@@ -44,7 +44,7 @@ params <- list(
   sigma_e = 0.05,
   sigma_g = 0.01,
   mutacion_sd = 0.02,
-  paso_introduccion = 400,
+  paso_introduccion = 250,
   tipo_plantilla = "lineal",
   modo_temporal = "constante",
   periodo_temporal = 10,
@@ -65,7 +65,10 @@ params <- list(
 )
 
 # Paso 1: ejecución de la simulación
-sim <- do.call(simular_hca, params)
+execution_time <- system.time({
+  sim <- do.call(simular_hca, params)
+})
+print(execution_time)
 setTxtProgressBar(pb, 1)
 flush.console()
 

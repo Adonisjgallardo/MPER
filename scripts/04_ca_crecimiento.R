@@ -60,7 +60,7 @@ fitness_estabilizador <- function(theta_local, z, omega2) {
 #' Ejecuta un paso de crecimiento + muerte de la colonia (asíncrono,
 #' orden aleatorio), con selección estabilizadora sobre z=g+e.
 #'
-#' @param estado matriz 0/1 de ocupación
+#' @param estado matriz lógica de ocupación
 #' @param g matriz de valor genético aditivo (heredable)
 #' @param e matriz de componente ambiental (ya resorteada este paso)
 #' @param N campo de nutriente
@@ -92,12 +92,12 @@ crecer_colonia <- function(estado, g, e, N, A,
 
   # Fenotipo derivado del campo local de NUTRIENTE (igual que antes)
   fenotipo <- matrix(NA_character_, nx, ny)
-  ocupados <- which(estado == 1L, arr.ind = TRUE)
+  ocupados <- which(estado == TRUE, arr.ind = TRUE)
   if (nrow(ocupados) > 0) {
     n_local <- N[ocupados]
     fenotipo[ocupados] <- ifelse(
       n_local >= N_umbral,
-      "proliferativo", 
+      "proliferativo",
       "dormante")}
 
   n_nacimientos <- 0L; n_muertes <- 0L
@@ -111,13 +111,13 @@ crecer_colonia <- function(estado, g, e, N, A,
 
   for (i in orden) {
     f <- ocupados[i, 1]; c <- ocupados[i, 2]
-    if (estado[f, c] == 0L) next   # pudo haber muerto ya en este mismo paso
+    if (!estado[f, c]) next   # pudo haber muerto ya en este mismo paso
 
     # ---- 1) ¿Muere este paso? ----------------------------------
     mm_deathrate <- A[f, c] / (A[f, c] + K_mort)
     p_mort <- mort_base + mort_estres * mm_deathrate * (1 - w[f, c])
     if (runif(1) < p_mort) {
-      estado[f, c] <- 0L
+      estado[f, c] <- FALSE
       g[f, c] <- NA_real_
       e[f, c] <- NA_real_
       n_muertes <- n_muertes + 1L
@@ -129,7 +129,7 @@ crecer_colonia <- function(estado, g, e, N, A,
     # dormante (limitado por nutriente): no divide
     if (n_local < N_umbral) next   
     vecinos <- vecinos_von_neumann(f, c, nx, ny)
-    libres  <- vecinos[estado[vecinos] == 0L, , drop = FALSE]
+    libres  <- vecinos[!estado[vecinos], , drop = FALSE]
     if (nrow(libres) == 0) next
 
     p_div <- p_max * (n_local / (n_local + N_half)) * w[f, c]
@@ -142,7 +142,7 @@ crecer_colonia <- function(estado, g, e, N, A,
     hijo_g <- min(max(hijo_g, 0), 1)
     hijo_e <- rnorm(1, 0, sigma_e)
 
-    estado[destino[1], destino[2]] <- 1L
+    estado[destino[1], destino[2]] <- TRUE
     g[destino[1], destino[2]] <- hijo_g
     e[destino[1], destino[2]] <- hijo_e
     n_nacimientos <- n_nacimientos + 1L
@@ -156,5 +156,16 @@ crecer_colonia <- function(estado, g, e, N, A,
 # If available, compile and load the Rcpp implementation for speed
 if (requireNamespace("Rcpp", quietly = TRUE)) {
   cpp_path <- file.path("src", "crecer_colonia.cpp")
-  if (file.exists(cpp_path)) Rcpp::sourceCpp(cpp_path)
+  if (file.exists(cpp_path)) {
+    tryCatch({
+      Rcpp::sourceCpp(cpp_path)
+      if (exists("crecer_colonia_cpp", mode = "function")) {
+        crecer_colonia <- function(estado, g, e, N, A, ...) {
+          crecer_colonia_cpp(estado, g, e, N, A, ...)
+        }
+      }
+    }, error = function(err) {
+      message("Warning: Rcpp compilation failed, falling back to R version of crecer_colonia. ", err$message)
+    })
+  }
 }

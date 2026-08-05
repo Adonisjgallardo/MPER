@@ -90,7 +90,7 @@ comparar_persistencia_empirica <- function(replicas) {
 #' @param tamanos vector de tamaños de caja a probar
 #' @return lista con `tabla`, `ajuste`, y `dimension`
 calcular_dimension_fractal <- function(estado, tamanos = c(2, 4, 5, 8, 10, 16, 20)) {
-  if (sum(estado == 1L, na.rm = TRUE) == 0) {
+  if (sum(estado, na.rm = TRUE) == 0) {
     return(list(tabla = data.frame(tamano = tamanos, N_cajas = rep(0L, length(tamanos))),
                 ajuste = NULL,
                 dimension = NA_real_))
@@ -112,7 +112,7 @@ dimension_fractal <- function(estado, tamanos = c(2, 4, 5, 8, 10, 16, 20)) {
       for (j in seq_len(nfy)) {
         f0 <- (i - 1) * s + 1; f1 <- min(i * s, nx)
         c0 <- (j - 1) * s + 1; c1 <- min(j * s, ny)
-        if (any(estado[f0:f1, c0:c1] == 1L)) cajas_ocupadas <- cajas_ocupadas + 1L
+        if (any(estado[f0:f1, c0:c1])) cajas_ocupadas <- cajas_ocupadas + 1L
       }
     }
     cajas_ocupadas
@@ -145,7 +145,7 @@ library(av)
 #' @param paso entero: paso de tiempo / "generación" del snapshot
 #' @return data.frame con columnas x, y, N, resist, paso
 snapshot_a_df <- function(estado, N, resist, paso = NA_integer_) {
-  idx <- which(estado == 1L, arr.ind = TRUE)
+  idx <- which(estado, arr.ind = TRUE)
   if (nrow(idx) == 0) {
     return(data.frame(x = integer(0), y = integer(0),
                        N = numeric(0), resist = numeric(0),

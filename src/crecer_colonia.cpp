@@ -3,7 +3,7 @@
 using namespace Rcpp;
 
 // [[Rcpp::export]]
-List crecer_colonia_cpp(IntegerMatrix estado, NumericMatrix g, NumericMatrix e,
+List crecer_colonia_cpp(LogicalMatrix estado, NumericMatrix g, NumericMatrix e,
                         NumericMatrix N, NumericMatrix A,
                         double theta0 = 0.1, double theta1 = 0.8, double omega2 = 0.05,
                         double K_theta = 0.3,
@@ -14,12 +14,30 @@ List crecer_colonia_cpp(IntegerMatrix estado, NumericMatrix g, NumericMatrix e,
 
   int nx = estado.nrow();
   int ny = estado.ncol();
+  int n_cells = nx * ny;
 
-  // collect occupied cells
-  std::vector< std::pair<int,int> > ocupados;
+  // precompute neighbor linear indices for von Neumann neighbors
+  std::vector<int> neighbors(4 * n_cells);
   for (int i = 0; i < nx; ++i) {
     for (int j = 0; j < ny; ++j) {
-      if (estado(i, j) == 1) ocupados.emplace_back(i, j);
+      int pos = i * ny + j;
+      int up    = ((i == 0) ? (nx - 1) : (i - 1)) * ny + j;
+      int down  = ((i == nx - 1) ? 0 : (i + 1)) * ny + j;
+      int left  = i * ny + ((j == 0) ? (ny - 1) : (j - 1));
+      int right = i * ny + ((j == ny - 1) ? 0 : (j + 1));
+      neighbors[4 * pos + 0] = up;
+      neighbors[4 * pos + 1] = down;
+      neighbors[4 * pos + 2] = left;
+      neighbors[4 * pos + 3] = right;
+    }
+  }
+
+  // collect occupied cells as linear indices
+  std::vector<int> ocupados;
+  ocupados.reserve(n_cells);
+  for (int i = 0; i < nx; ++i) {
+    for (int j = 0; j < ny; ++j) {
+      if (estado(i, j)) ocupados.push_back(i * ny + j);
     }
   }
 
@@ -31,8 +49,9 @@ List crecer_colonia_cpp(IntegerMatrix estado, NumericMatrix g, NumericMatrix e,
 
   if (!ocupados.empty()) {
     // compute fenotipo (proliferativo/dormante) for occupied
-    for (auto &p : ocupados) {
-      int i = p.first, j = p.second;
+    for (auto pos : ocupados) {
+      int i = pos / ny;
+      int j = pos % ny;
       double nlocal = N(i, j);
       if (nlocal >= N_umbral) fenotipo(i, j) = "proliferativo";
       else fenotipo(i, j) = "dormante";
@@ -53,16 +72,34 @@ List crecer_colonia_cpp(IntegerMatrix estado, NumericMatrix g, NumericMatrix e,
 
   // shuffle order using R's RNG: assign random keys and sort
   int m = ocupados.size();
+  std::vector<double> key_vec(m);
+  std::vector<double> u_death(m);
+  std::vector<double> u_div(m);
+  std::vector<double> u_choice(m);
+  std::vector<double> mut_r(m);
+  std::vector<double> e_r(m);
+
+  for (int k = 0; k < m; ++k) {
+    key_vec[k] = R::runif(0.0, 1.0);
+    u_death[k] = R::runif(0.0, 1.0);
+    u_div[k] = R::runif(0.0, 1.0);
+    u_choice[k] = R::runif(0.0, 1.0);
+    mut_r[k] = R::rnorm(0.0, mutacion_sd);
+    e_r[k] = R::rnorm(0.0, sigma_e);
+  }
+
   std::vector< std::pair<double,int> > keys; keys.reserve(m);
-  for (int k = 0; k < m; ++k) keys.emplace_back(R::runif(0.0, 1.0), k);
+  for (int k = 0; k < m; ++k) keys.emplace_back(key_vec[k], k);
   std::sort(keys.begin(), keys.end());
 
+  int div_counter = 0;
   for (int kk = 0; kk < m; ++kk) {
     int idx = keys[kk].second;
-    int f = ocupados[idx].first;
-    int c = ocupados[idx].second;
+    int pos = ocupados[idx];
+    int f = pos / ny;
+    int c = pos % ny;
 
-    if (estado(f, c) == 0) continue; // may have died earlier in this step
+    if (!estado(f, c)) continue; // may have died earlier in this step
 
     // compute local z and theta and fitness w
     double gval = g(f, c);
@@ -75,8 +112,8 @@ List crecer_colonia_cpp(IntegerMatrix estado, NumericMatrix g, NumericMatrix e,
 
     // 1) Mortality
     double p_mort = mort_base + mort_estres * (Alocal / (Alocal + K_mort)) * (1.0 - w);
-    if (R::runif(0.0, 1.0) < p_mort) {
-      estado(f, c) = 0;
+    if ((double) u_death[idx] < p_mort) {
+      estado(f, c) = false;
       g(f, c) = NA_REAL;
       e(f, c) = NA_REAL;
       n_muertes += 1;
@@ -87,36 +124,35 @@ List crecer_colonia_cpp(IntegerMatrix estado, NumericMatrix g, NumericMatrix e,
     double n_local = N(f, c);
     if (n_local < N_umbral) continue;
 
-    // von Neumann neighbors with periodic wrap
-    int up = (f == 0) ? (nx - 1) : (f - 1);
-    int down = (f == nx - 1) ? 0 : (f + 1);
-    int left = (c == 0) ? (ny - 1) : (c - 1);
-    int right = (c == ny - 1) ? 0 : (c + 1);
-
-    std::vector< std::pair<int,int> > libres;
-    // check neighbors
-    if (estado(up, c) == 0) libres.emplace_back(up, c);
-    if (estado(down, c) == 0) libres.emplace_back(down, c);
-    if (estado(f, left) == 0) libres.emplace_back(f, left);
-    if (estado(f, right) == 0) libres.emplace_back(f, right);
+    int current_pos = f * ny + c;
+    std::vector<int> libres;
+    libres.reserve(4);
+    for (int neighbor_idx = 0; neighbor_idx < 4; ++neighbor_idx) {
+      int npos = neighbors[4 * current_pos + neighbor_idx];
+      int ni = npos / ny;
+      int nj = npos % ny;
+      if (!estado(ni, nj)) libres.push_back(npos);
+    }
 
     if (libres.empty()) continue;
 
     double p_div = p_max * (n_local / (n_local + N_half)) * w;
-    if (R::runif(0.0, 1.0) > p_div) continue;
+    if ((double) u_div[idx] > p_div) continue;
 
     // choose a random free neighbor
-    int chosen = (int) std::floor(R::runif(0.0, 1.0) * (double)libres.size());
-    if (chosen >= (int)libres.size()) chosen = (int)libres.size() - 1;
-    int di = libres[chosen].first;
-    int dj = libres[chosen].second;
+    int chosen = (int) std::floor((double) u_choice[idx] * (double) libres.size());
+    if (chosen >= (int) libres.size()) chosen = (int) libres.size() - 1;
+    int npos = libres[chosen];
+    int di = npos / ny;
+    int dj = npos % ny;
 
-    double hijo_g = gval + R::rnorm(0.0, mutacion_sd);
+    double hijo_g = gval + (double) mut_r[div_counter];
     if (hijo_g < 0.0) hijo_g = 0.0;
     if (hijo_g > 1.0) hijo_g = 1.0;
-    double hijo_e = R::rnorm(0.0, sigma_e);
+    double hijo_e = (double) e_r[div_counter];
+    div_counter++;
 
-    estado(di, dj) = 1;
+    estado(di, dj) = true;
     g(di, dj) = hijo_g;
     e(di, dj) = hijo_e;
     // set fenotipo for the newborn according to N

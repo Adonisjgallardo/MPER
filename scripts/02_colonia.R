@@ -38,7 +38,7 @@ crear_colonia_inicial <- function(nx, ny,
                                    seed = 123) {
   set.seed(seed)
 
-  estado <- matrix(0L, nx, ny)        # 0 = vacío, 1 = ocupado
+  estado <- matrix(FALSE, nx, ny)      # FALSE = vacío, TRUE = ocupado
   g <- matrix(NA_real_, nx, ny)       # componente genética aditiva (heredable)
   e <- matrix(NA_real_, nx, ny)       # componente ambiental (no heredable)
 
@@ -48,7 +48,7 @@ crear_colonia_inicial <- function(nx, ny,
 
   for (i in seq_len(nrow(inoculo))) {
     f <- inoculo[i, 1]; c <- inoculo[i, 2]
-    estado[f, c] <- 1L
+    estado[f, c] <- TRUE
     g[f, c] <- g_inicial
     e[f, c] <- rnorm(1, 0, sigma_e)
   }
@@ -61,12 +61,12 @@ crear_colonia_inicial <- function(nx, ny,
 #' de que e ~ N(0, sigma_e^2) i.i.d. en cada generación, independiente
 #' del valor genético y del pasado del individuo.
 #'
-#' @param estado matriz 0/1 de ocupación
+#' @param estado matriz lógica de ocupación
 #' @param e matriz de componente ambiental (se sobreescribe donde
-#'        estado==1; se deja NA donde está vacío)
+#'        estado == TRUE; se deja NA donde está vacío)
 #' @param sigma_e sd de la componente ambiental
 resortear_ambiente <- function(estado, e, sigma_e) {
-  idx <- which(estado == 1L)
+  idx <- which(estado == TRUE)
   if (length(idx) > 0) e[idx] <- rnorm(length(idx), 0, sigma_e)
   e
 }
