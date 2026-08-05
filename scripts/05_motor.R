@@ -55,6 +55,8 @@ simular_hca <- function(nx = 100, ny = 100,
                          mort_base = 0.01, mort_estres = 0.9, K_mort = 0.3,
                          Nc = 200,
                          guardar_cada = 20,
+                         guardar_historial_en_disco = FALSE,
+                         historial_dir = NULL,
                          seed = 123) {
 
   tipo_plantilla <- match.arg(tipo_plantilla)
@@ -71,12 +73,26 @@ simular_hca <- function(nx = 100, ny = 100,
                                     sigma_e = sigma_e, seed = seed)
   estado <- colonia$estado; g <- colonia$g; e <- colonia$e
 
-  historial <- list()
+  if (guardar_historial_en_disco) {
+    if (is.null(historial_dir)) {
+      historial_dir <- file.path(getwd(), "historial")
+    }
+    dir.create(historial_dir, recursive = TRUE, showWarnings = FALSE)
+    historial_files <- character(0)
+    historial <- list()
+    historial_idx <- 0L
+  } else {
+    max_snapshots <- max(1, ceiling(n_steps / guardar_cada))
+    historial <- vector("list", max_snapshots)
+    historial_idx <- 0L
+    historial_files <- NULL
+  }
+
   resumen <- data.frame(
-    paso = integer(0), n_ocupados = integer(0), n_frente = integer(0),
-    nacimientos = integer(0), muertes = integer(0),
-    N_medio = numeric(0), A_medio = numeric(0),
-    g_bar = numeric(0), var_g = numeric(0), z_bar = numeric(0)
+    paso = integer(n_steps), n_ocupados = integer(n_steps), n_frente = integer(n_steps),
+    nacimientos = integer(n_steps), muertes = integer(n_steps),
+    N_medio = numeric(n_steps), A_medio = numeric(n_steps),
+    g_bar = numeric(n_steps), var_g = numeric(n_steps), z_bar = numeric(n_steps)
   )
   paso_extincion <- NA_integer_
 
@@ -109,25 +125,34 @@ simular_hca <- function(nx = 100, ny = 100,
     g_vivos    <- g[estado]
     z_vivos    <- fenotipo_z(g, e)[estado]
 
-    resumen <- rbind(resumen, data.frame(
+    resumen[paso, ] <- list(
       paso = paso, n_ocupados = n_ocupados, n_frente = n_frente,
       nacimientos = res_ca$nacimientos, muertes = res_ca$muertes,
       N_medio = mean(N), A_medio = mean(A),
       g_bar = if (n_ocupados > 0) mean(g_vivos) else NA_real_,
       var_g = if (n_ocupados > 1) var(g_vivos) else NA_real_,
       z_bar = if (n_ocupados > 0) mean(z_vivos) else NA_real_
-    ))
+    )
 
     if (is.na(paso_extincion) && n_ocupados < Nc && paso > paso_introduccion) {
       paso_extincion <- paso   # primer cruce bajo el umbral crítico POST-shock
     }
 
     if (paso %% guardar_cada == 0 || paso == n_steps) {
-      historial[[length(historial) + 1]] <- list(
+      snapshot <- list(
         paso = paso, estado = estado, N = N, A = A,
         resist = fenotipo_z(g, e),   # alias "resist"=z para compatibilidad con 06_analisis.R
         g = g, e = e, fenotipo = res_ca$fenotipo
       )
+
+      if (guardar_historial_en_disco) {
+        file_path <- file.path(historial_dir, sprintf("historial_paso_%05d.rds", paso))
+        saveRDS(snapshot, file_path)
+        historial_files <- c(historial_files, file_path)
+      } else {
+        historial_idx <- historial_idx + 1L
+        historial[[historial_idx]] <- snapshot
+      }
     }
 
     if (n_ocupados == 0) break   # extinción total: no tiene sentido seguir
@@ -151,11 +176,39 @@ simular_hca <- function(nx = 100, ny = 100,
 #' @param n_replicas número de corridas independientes
 #' @param ... argumentos pasados a `simular_hca()`
 #' @return lista de longitud `n_replicas`, cada elemento un `resumen`
-simular_hca_replicas <- function(n_replicas = 20, semilla_base = 1000, ...) {
-  lapply(seq_len(n_replicas), function(i) {
+simular_hca_replicas <- function(n_replicas = 20, semilla_base = 1000,
+                                  n_cores = parallel::detectCores(logical = FALSE),
+                                  use_foreach = FALSE,
+                                  ...) {
+  if (n_replicas < 1L) return(list())
+  n_cores <- max(1L, min(n_cores, n_replicas))
+
+  run_replica <- function(i) {
     sim_i <- simular_hca(seed = semilla_base + i, ...)
     list(resumen = sim_i$resumen,
          paso_introduccion = sim_i$paso_introduccion,
          paso_extincion = sim_i$paso_extincion)
-  })
+  }
+
+  if (.Platform$OS.type != "windows" && !use_foreach) {
+    parallel::mclapply(seq_len(n_replicas), run_replica, mc.cores = n_cores)
+  } else {
+    if (!requireNamespace("foreach", quietly = TRUE) ||
+        !requireNamespace("doParallel", quietly = TRUE)) {
+      warning("foreach/doParallel not available; running simular_hca_replicas() serially")
+      lapply(seq_len(n_replicas), run_replica)
+    } else {
+      cl <- parallel::makeCluster(n_cores)
+      doParallel::registerDoParallel(cl)
+      on.exit({
+        parallel::stopCluster(cl)
+        doParallel::stopImplicitCluster()
+      }, add = TRUE)
+
+      foreach::foreach(i = seq_len(n_replicas), .export = c("simular_hca"),
+                       .packages = character(0)) %dopar% {
+        run_replica(i)
+      }
+    }
+  }
 }
