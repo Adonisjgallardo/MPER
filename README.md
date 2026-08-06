@@ -1,163 +1,79 @@
 # MPER
-Adaptative Reorganization And Ecological Perturbation Model
+Adaptative Reorganization and Ecological Perturbation Model
 
-## Intro OLD
+MPER is a spatial, agent-based model for studying how microbial populations respond to abrupt environmental change. The main idea is to test whether antimicrobial resistance can emerge as a reorganization of pre-existing phenotypic variation rather than as the creation of entirely new traits.
 
-MPER
-Modelo de Perturbación Ecológica y Reorganización Adaptativa
-Idea central
+## What the model does
 
-Una comunidad microbiana muestra una **diversidad fenotípica preexistente**. La heterogeneidad ambiental mantiene esa diversidad. Una *perturbación ecológica* modifica el paisaje adaptativo y provoca una reorganización de las **frecuencias** fenotípicas.
+The core simulation combines:
 
-Comunidad -> Diversidad inicial -> Perturacion ambietal -> Diversidad final
+- a nutrient field that diffuses and is consumed by the colony,
+- an antibiotic field that is initially absent and is introduced as an abrupt shock,
+- a cellular automaton for birth and death events,
+- quantitative-genetic dynamics in which each cell carries a heritable value $g$, a non-heritable environmental component $e$, and a realized phenotype $z = g + e$.
 
-La resistencia antimicrobiana sería un caso particular cuando una de las dimensiones del fenotipo representa tolerancia o resistencia.
+The colony starts from a small inoculum and evolves under stabilizing selection around a local optimum that shifts when antibiotic stress increases. The model tracks whether the population persists, collapses, or recovers after the shock.
 
-Comunidad -> Diversidad inicial -> Perturacion Antibiotico -> Diversidad final
+## Main workflow
 
-## Estructura del proyecto
+The project currently has two layers:
 
-| Script                  | Función                         | Entrada                        | Salida                                                   |   |
-| ----------------------- | ------------------------------- | ------------------------------ | -------------------------------------------------------- | - |
-| **01_paisaje.R**        | Construye el paisaje adaptativo | Ninguna (solo parámetros)      | `paisaje_inicial.rds`                                    |   |
-| **02_bacterias.R**      | Genera la población inicial     | `paisaje_inicial.rds`          | `bacterias_iniciales.rds`                                |   |
-| **03_dinamica.R**       | Evolución antes del disturbio   | Paisaje + bacterias            | `historial_evolucion.rds`                                |   |
-| **04_disturbio.R**      | Modifica el ambiente            | Historial + paisaje            | `paisaje_perturbado.rds` y `bacterias_pre_disturbio.rds` |   |
-| **05_reorganizacion.R** | Evolución después del disturbio | Paisaje perturbado + bacterias | `historial_post_disturbio.rds`                           |   |
+1. The simulation engine in [scripts](scripts)
+2. Example workflows in [example/scripts](example/scripts)
 
-### Parámetros del paisaje *(01_paisaje.R)*
+### 1. Core simulation engine
 
-El paisaje es una cuadrícula de 100 × 100 celdas donde cada ua posee cuatro variables ambientales que representan dimensiones ecológicas,
+The main entry point is [scripts/05_motor.R](scripts/05_motor.R), which runs the full hybrid simulation through the following steps:
 
-$E_1$: tolerancia antimicrobiana
-$E_2$: crecimiento
-$E_3$: persistencia
-$E_4$: dispersión
+1. Create the nutrient field and antibiotic template with [scripts/01_campos.R](scripts/01_campos.R) and [scripts/02_colonia.R](scripts/02_colonia.R).
+2. Update the nutrient and antibiotic PDE fields in [scripts/03_pde_difusion.R](scripts/03_pde_difusion.R).
+3. Apply the cellular automaton dynamics in [scripts/04_ca_crecimiento.R](scripts/04_ca_crecimiento.R).
+4. Record summaries and snapshots for each time step in [scripts/05_motor.R](scripts/05_motor.R).
+5. Compute post-processing metrics and plots in [scripts/07_analisis.R](scripts/07_analisis.R).
 
-### Población inicial *(02_bacterias.R)*
+The simulation object returned by the main function includes:
 
-Cada bacteria posee propiedades asociadas a su estado: 
+- a time-series summary in `resumen`,
+- a history of snapshots in `historial`,
+- the final state of the colony and fields,
+- the extinction step, if one occurs.
 
-$P = (F_1, F_2, F_3, F_4)$
+### 2. Example workflow
 
-Dode:
+The example scripts live in [example/scripts](example/scripts) and are intended to be the reproducible entry points for users:
 
-$F_1$: identificador
-$F_2$: posición (x,y)
-$F_3$: cuatro rasgos fenotípicos
-$F_4$: edad y generación (conceptualmente)
+- [example/scripts/08_simulate.R](example/scripts/08_simulate.R): runs a single example simulation and exports outputs to [example/data/simulation](example/data/simulation) and [example/plots/simulation](example/plots/simulation).
+- [example/scripts/09_profile.R](example/scripts/09_profile.R): profiles the simulation runtime and writes profiling output to [example/profile_historial](example/profile_historial).
+- [example/scripts/10_factorial_Design.R](example/scripts/10_factorial_Design.R): runs a small factorial experiment over key parameters such as stress intensity, selection width, and mutation rate.
 
+The example outputs are organized as follows:
 
-La población inicial contiene aproximadamente 10 000 individuos y no está formada por clones.
+- [example/data](example/data): simulation outputs and experiment results.
+- [example/plots](example/plots): plots and animations.
+- [example/profile_historial](example/profile_historial): saved profiling snapshots.
 
-### Parámetros evolutivos *(03_dinamica.R)*
+## Parameters and interpretation
 
-Aquí ocurre la evolución.
+A few parameters are especially important for interpreting the results:
 
-Cada ciclo de la simulacion fija 100 generacioes antes y despues del disturbio. Las mutaciones se suponen de distribucion normal y se acerca el tamaño poblacional a 10 000 individuos por generacion. 
+- `A_max`: amplitude of the antibiotic shock after introduction.
+- `omega2`: width of the stabilizing selection curve; smaller values imply stronger selection.
+- `mutacion_sd`: standard deviation of the additive mutation step during division.
+- `paso_introduccion`: time step at which the antibiotic shock is introduced.
+- `Nc`: population threshold used to define quasi-extinction for persistence analysis.
 
-En cada generación:
+These parameters control the balance between growth, stress, adaptation, and demographic decline.
 
-a) Cada bacteria lee el ambiente donde está ubicada.
-) Se calcula la distancia $d$ entre su fenotipo y el ambiente.
-c) Esa distancia se convierte en un valor de fitness $\rho$ mediante
+## Outputs
 
-$$\rho = e^{−d}$$
+The scripts generate several useful artifacts:
 
-d) Sobreviven probabilísticamente según ese fitness.
-e) Los sobrevivientes producen descendencia.
-f) La descendencia recibe pequeñas mutaciones.
+- summaries of population size and trait statistics,
+- snapshots of the colony state across time,
+- fractal-dimension estimates,
+- static plots and animations of the spatial dynamics,
+- experiment tables for factorial exploration.
 
-Esto asegura que cada individuo posea movimiento, capacidad para leer el ambiente y responder al cálcular la distancia y el fitness. Asi tamie se asegura que exista la mortalidad, la reproducción y la mutabilidad.
+## Suggested next step
 
-### Disturbaciones *(04_disturbio.R)*
-
-Solo modificamos el paisaje y permitimos que los individuos reaccionen al cambio. La comunidad responde.
-
-### Graficos *(05_visualizacion.R)*
-
-Archivos de datos
-
-El modelo genera los siguientes archivos:
-
-    *paisaje_inicial.rds*
-    *bacterias_iniciales.rds*
-    *historial_evolucion.rds*
-    *paisaje_perturbado.rds*
-    *bacterias_pre_disturbio.rds*
-    *historial_post_disturbio.rds*
-
-Estos archivos de datos se usan para producir graficos de: 
-
-    *mapa del paisaje adaptativo*
-    *distribución espacial de bacterias*
-    *espacio fenotípico* ($F_1$ vs $F_2$)
-    *comparación antes y después del disturbio*
-    *evolución temporal* (propuesta en el documento)
-
-Estos graficos se usan para revisar la hipotesis del mapa del paisaje, la distribución bacteriana, la evolución temporal, mapas de densidad, PCA y trayectorias.
-
-## Resultados biológicos esperados
-
-Si la hipótesis es correcta, después del disturbio se observará que:
-
-    algunos fenotipos aumentan su frecuencia;
-    otros disminuyen o desaparecen;
-    la composición de la comunidad cambia;
-    la diversidad observada proviene de la reorganización de variantes preexistentes, no de la creación de nuevas variantes por el antibiótico.
-
-### Observaciones técnicas
-
-El modelo es una *simulación basada en agentes* (Agent-Based Model, ABM) con un paisaje adaptativo espacial. Conceptualmente es sólido para explorar la hipótesis planteada, aunque en esta versión presenta varias simplificaciones:
-
-Las bacterias no se desplazan entre celdas, aunque el documento menciona movimiento como parte de la dinámica.
-
-No hay competencia por recursos ni capacidad de carga.
-
-La reproducción es asexual y proporcional al fitness.
-
-El fitness depende únicamente de la distancia euclidiana entre el fenotipo y el ambiente.
-
-El disturbio modifica únicamente la dimensión $E_1$, representando un cambio ambiental localizado. 
-
-Se implementa una primera versión de un modelo evolutivo espacial diseñado para evaluar **si la resistencia antimicrobiana puede interpretarse como una reorganización adaptativa de diversidad fenotípica preexistente**, más que como la aparición de nuevos rasgos inducidos por el ambiente.
-
-## Intro nEW
-Execution pipeline (from 08_simulate.R)
-Initialisation (01_campos.R, 02_colonia.R)
-
-Create nutrient field N (uniform + optional noise).
-
-Create spatial antibiotic template (uniform/linear/radial).
-
-Seed a colony at the centre with initial genetic value g_inicial and environmental deviation e ~ N(0, σₑ²).
-
-Main time loop (inside simular_hca() in 05_motor.R)
-
-PDE updates (03_pde_difusion.R)
-
-Nutrient: diffusion + consumption by bacteria (Michaelis‑Menten).
-
-Antibiotic: diffusion + degradation + relaxation toward a time‑varying target (zero before shock, then a spatial gradient with optional temporal modulation).
-
-Environmental resampling (resortear_ambiente) – redraw e for every living cell each step (quantitative‑genetics assumption).
-
-Cellular automaton step (crecer_colonia in 04_ca_crecimiento.R)
-
-For each occupied cell (in random order):
-
-Compute local fitness w = exp(−(θ − z)²/(2ω²)).
-Determine death probability: p_mort = mort_base + mort_estres * A/(A+K_mort) * (1−w). If death occurs, the site is cleared.
-If alive, check if it can divide (requires local nutrient above threshold and space in von Neumann neighbourhood).
-Division probability: p_div = p_max * (N/(N+N_half)) * w. If successful, offspring inherits g with mutation (Gaussian) and gets a fresh e.
-Data recording – every guardar_cada steps a full snapshot (occupancy, N, A, phenotype) is stored; also a resumen data frame with population statistics.
-
-Post‑processing (07_analisis.R, 08_simulate.R)
-
-Compute fractal dimension of the colony (box‑counting).
-
-Compare simulated trajectories with analytical predictions (quantitative genetics, persistence times).
-
-Generate static plots and animations (ggplot2 + magick/av).
-
-## ADD factorial design as an example
+As the project grows, a natural next step would be to move the shared R functions into a package-style structure under [R](R), while keeping [example](example) as a place for reproducible demonstrations and experiments.
