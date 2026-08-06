@@ -160,3 +160,4 @@ Compare simulated trajectories with analytical predictions (quantitative genetic
 
 Generate static plots and animations (ggplot2 + magick/av).
 
+## ADD factorial design as an example
