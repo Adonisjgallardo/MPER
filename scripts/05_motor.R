@@ -89,10 +89,16 @@ simular_hca <- function(nx = 100, ny = 100,
   }
 
   resumen <- data.frame(
-    paso = integer(n_steps), n_ocupados = integer(n_steps), n_frente = integer(n_steps),
-    nacimientos = integer(n_steps), muertes = integer(n_steps),
-    N_medio = numeric(n_steps), A_medio = numeric(n_steps),
-    g_bar = numeric(n_steps), var_g = numeric(n_steps), z_bar = numeric(n_steps)
+    paso = integer(n_steps), 
+    n_ocupados = integer(n_steps), 
+    n_frente = integer(n_steps),
+    nacimientos = integer(n_steps), 
+    muertes = integer(n_steps),
+    N_medio = numeric(n_steps), 
+    A_medio = numeric(n_steps),
+    g_bar = numeric(n_steps), 
+    var_g = numeric(n_steps), 
+    z_bar = numeric(n_steps)
   )
   paso_extincion <- NA_integer_
 
