@@ -3,6 +3,10 @@
 ## Definicion de la interfaz de usuario de HCARescue.
 ## ============================================================
 
+#' Build the HCA app UI
+#'
+#' @return A Shiny UI definition.
+#' @export
 hca_ui <- function() {
   shiny::fluidPage(
     theme = bslib::bs_theme(bootswatch = "flatly", primary = "#1b6ca8"),

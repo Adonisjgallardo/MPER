@@ -5,6 +5,10 @@
 ## abrir/ejecutar app.R directamente en RStudio).
 ## ============================================================
 
+#' Launch the Shiny app
+#'
+#' @return A Shiny app object.
+#' @export
 run_hca_app <- function(...) {
   shiny::shinyApp(ui = hca_ui(), server = hca_server, ...)
 }

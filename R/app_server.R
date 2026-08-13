@@ -17,6 +17,13 @@ if (.async_disponible) {
   future::plan(future::multisession)
 }
 
+#' HCA app server function
+#'
+#' @param input Shiny input object.
+#' @param output Shiny output object.
+#' @param session Shiny session object.
+#' @return A Shiny server function.
+#' @export
 hca_server <- function(input, output, session) {
 
   rv <- shiny::reactiveValues(
