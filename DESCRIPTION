@@ -1,9 +1,25 @@
 Package: MPER
 Title: Adaptive Reorganization and Ecological Perturbation Model
 Version: 0.0.0.9000
-Authors@R: person("Adonis", "", email = "", role = c("aut", "cre"))
+Authors@R: person("Adonis", "", email = "adonisjgallard@gmail.com", role = c("aut", "cre"))
 Description: Simulation framework and experiment scripts for studying adaptive reorganization under ecological perturbation.
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
+Imports:
+    shiny,
+    ggplot2,
+    bslib,
+    shinyjs,
+    future,
+    promises,
+    here,
+    magick,
+    av,
+    Rcpp
+LinkingTo:
+    Rcpp
+Suggests:
+    testthat
+
