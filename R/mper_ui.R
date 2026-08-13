@@ -7,7 +7,7 @@
 #'
 #' @return A Shiny UI definition.
 #' @export
-hca_ui <- function() {
+mper_ui <- function() {
   shiny::fluidPage(
     theme = bslib::bs_theme(bootswatch = "flatly", primary = "#1b6ca8"),
     shinyjs::useShinyjs(),
@@ -15,8 +15,8 @@ hca_ui <- function() {
       shiny::tags$link(rel = "stylesheet", type = "text/css", href = "styles.css")
     ),
 
-    shiny::titlePanel("HCA Evolutionary Rescue Simulator",
-                       windowTitle = "HCA Rescate Evolutivo"),
+    shiny::titlePanel("Evolutionary Rescue Simulator",
+                       windowTitle = "MPER: Evolutionary Rescue Simulator"),
     shiny::div(class = "hca-subtitle",
       "Autómata celular híbrido (PDE nutriente/antibiótico + genética cuantitativa) ",
       "para rescate evolutivo bajo estrés antibiótico espacialmente heterogéneo."),

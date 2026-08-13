@@ -24,7 +24,7 @@ if (.async_disponible) {
 #' @param session Shiny session object.
 #' @return A Shiny server function.
 #' @export
-hca_server <- function(input, output, session) {
+mper_server <- function(input, output, session) {
 
   rv <- shiny::reactiveValues(
     sim_result   = NULL,

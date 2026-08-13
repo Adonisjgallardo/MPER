@@ -7,9 +7,9 @@
 
 #' Launch the Shiny app
 #'
-#' @name run_hca_app
+#' @name run_mper
 #' @return A Shiny app object.
 #' @export
-run_hca_app <- function(...) {
-  shiny::shinyApp(ui = hca_ui(), server = hca_server, ...)
+run_mper <- function(...) {
+  shiny::shinyApp(ui = mper_ui(), server = mper_server, ...)
 }
