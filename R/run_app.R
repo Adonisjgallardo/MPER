@@ -7,6 +7,7 @@
 
 #' Launch the Shiny app
 #'
+#' @name run_hca_app
 #' @return A Shiny app object.
 #' @export
 run_hca_app <- function(...) {
