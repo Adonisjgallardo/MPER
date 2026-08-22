@@ -229,8 +229,15 @@ simular_hca_replicas <- function(n_replicas = 20, semilla_base = 1000,
   if (n_replicas < 1L) return(list())
   n_cores <- max(1L, min(n_cores, n_replicas))
 
+  ## Los puntos se capturan UNA VEZ aqui (no dentro de run_replica): asi
+  ## la clausura no referencia `...` de un contexto ajeno (evita el aviso
+  ## "... may be used in an incorrect context") y no quedan promesas
+  ## perezosas que serializar hacia los workers.
+  args_base <- list(...)
+  args_base$seed <- NULL   # la semilla por-replica tiene prioridad
+
   run_replica <- function(i) {
-    sim_i <- simular_hca(seed = semilla_base + i, ...)
+    sim_i <- do.call(simular_hca, c(list(seed = semilla_base + i), args_base))
     list(resumen = sim_i$resumen,
          paso_introduccion = sim_i$paso_introduccion,
          paso_extincion = sim_i$paso_extincion)
@@ -238,23 +245,41 @@ simular_hca_replicas <- function(n_replicas = 20, semilla_base = 1000,
 
   if (.Platform$OS.type != "windows" && !use_foreach) {
     parallel::mclapply(seq_len(n_replicas), run_replica, mc.cores = n_cores)
-  } else {
-    if (!requireNamespace("foreach", quietly = TRUE) ||
-        !requireNamespace("doParallel", quietly = TRUE)) {
-      warning("foreach/doParallel not available; running simular_hca_replicas() serially")
-      lapply(seq_len(n_replicas), run_replica)
     } else {
-      cl <- parallel::makeCluster(n_cores)
-      doParallel::registerDoParallel(cl)
-      on.exit({
-        parallel::stopCluster(cl)
-        doParallel::stopImplicitCluster()
-      }, add = TRUE)
+      if (!requireNamespace("foreach", quietly = TRUE) ||
+          !requireNamespace("doParallel", quietly = TRUE)) {
+        warning("foreach/doParallel not available; running simular_hca_replicas() serially")
+        lapply(seq_len(n_replicas), run_replica)
+      } else {
+        ## El operador infijo %dopar% vive en el namespace de foreach pero
+        ## requireNamespace() NO lo adjunta al search path; sin este enlace
+        ## local la busqueda del operador falla con
+        ## 'no se pudo encontrar la funcion "%dopar%"'.
+        `%dopar%` <- foreach::`%dopar%`
+        cl <- parallel::makeCluster(n_cores)
+        doParallel::registerDoParallel(cl)
+        on.exit({
+          parallel::stopCluster(cl)
+          doParallel::stopImplicitCluster()
+        }, add = TRUE)
 
-      foreach::foreach(i = seq_len(n_replicas), .export = c("simular_hca"),
-                       .packages = character(0)) %dopar% {
-        run_replica(i)
+        ## Exportar a los workers TODAS las funciones del entorno donde
+        ## vive el motor (globalenv si se corre por source()/load_all(),
+        ## namespace si es el paquete instalado): exportar solo
+        ## `simular_hca` deja a los trabajadores sin sus dependencias
+        ## internas (p. ej. 'no se pudo encontrar la funcion
+        ## "verificar_estabilidad_dt"').
+        env_motor <- environment(simular_hca)
+        nombres <- ls(env_motor, all.names = FALSE)
+        funciones_motor <- nombres[vapply(
+          nombres,
+          function(n) is.function(get(n, envir = env_motor)),
+          logical(1)
+        )]
+        foreach::foreach(i = seq_len(n_replicas), .export = funciones_motor,
+                         .packages = character(0)) %dopar% {
+          run_replica(i)
+        }
       }
     }
-  }
 }

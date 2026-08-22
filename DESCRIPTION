@@ -21,5 +21,9 @@ Imports:
 LinkingTo:
     Rcpp
 Suggests:
-    testthat
+    testthat,
+    shinytest2,
+    chromote,
+    foreach,
+    doParallel
 Config/roxygen2/version: 8.1.0

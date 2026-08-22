@@ -35,7 +35,7 @@ shiny::runApp("inst/app")
 Alternatively, after loading the package in an R session:
 
 ```r
-run_hca_app()
+run_mper()
 ```
 
 ### Example workflows
