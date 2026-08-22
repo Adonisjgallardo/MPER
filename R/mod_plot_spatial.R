@@ -9,6 +9,41 @@
 ## ensamblado con magick.
 ## ============================================================
 
+#' Grafica un snapshot con ejes FIJOS a la reticula completa
+#'
+#' A diferencia de dejar que ggplot elija los limites a partir de los
+#' sitios ocupados, aqui siempre se usa la reticula entera
+#' [0.5, nx+0.5] x [0.5, ny+0.5], de modo que la posicion y el tamano
+#' del grafico NO cambian entre snapshots ni durante la reproduccion.
+#'
+#' @param snap lista con `estado`, `N`, `resist`, `paso` (un snapshot
+#'        tal como los guarda `simular_hca()`)
+#' @param variable "resist" o "N": que variable colorear
+#' @param point_size,alpha estetica de los puntos
+#'
+#' @return un objeto ggplot
+plot_snapshot_estatico <- function(snap, variable = c("resist", "N"),
+                                    point_size = 0.7, alpha = 0.75) {
+  variable <- match.arg(variable)
+  dims <- dim(snap$estado)
+  nx <- if (is.null(dims)) 100L else as.integer(dims[1])
+  ny <- if (is.null(dims)) 100L else as.integer(dims[2])
+
+  df <- snapshot_a_df(snap$estado, snap$N, snap$resist, paso = snap$paso)
+  etiqueta <- if (variable == "resist") "Resistencia (z)" else "Nutriente (N)"
+  limites_color <- if (nrow(df) > 0) range(df[[variable]], na.rm = TRUE) else c(NA_real_, NA_real_)
+
+  ggplot2::ggplot(df, ggplot2::aes(x = x, y = y, colour = .data[[variable]])) +
+    ggplot2::geom_point(size = point_size, alpha = alpha) +
+    ggplot2::scale_colour_viridis_c(option = "plasma", name = etiqueta,
+                                     limits = limites_color) +
+    ggplot2::coord_fixed(xlim = c(0.5, nx + 0.5), ylim = c(0.5, ny + 0.5),
+                          expand = FALSE) +
+    ggplot2::labs(title = paste("Paso:", snap$paso),
+                  x = "Posicion X", y = "Posicion Y") +
+    tema_hca()
+}
+
 mod_spatial_ui <- function(id) {
   ns <- shiny::NS(id)
   shiny::tagList(
@@ -53,11 +88,16 @@ mod_spatial_server <- function(id, sim_reactive) {
     rv_anim <- shiny::reactiveValues(mp4_generado = FALSE, generando = FALSE)
 
     ## Al correr una nueva simulacion, invalida el video anterior para
-    ## no mostrar una animacion desactualizada.
+    ## no mostrar una animacion desactualizada. Se usa isolate() para NO
+    ## crear dependencias sobre rv_anim: si el observador dependiera de
+    ## `generando`, se re-ejecutaria justo tras terminar la generacion y
+    ## borraria el mp4_generado=TRUE recien asignado.
     shiny::observe({
       sim_reactive()
-      rv_anim$mp4_generado <- FALSE
-      if (!rv_anim$generando) shinyjs::disable("download_mp4")
+      shiny::isolate({
+        rv_anim$mp4_generado <- FALSE
+        if (!rv_anim$generando) shinyjs::disable("download_mp4")
+      })
     })
 
     ## El boton de descarga arranca deshabilitado: solo tiene sentido
@@ -75,9 +115,14 @@ mod_spatial_server <- function(id, sim_reactive) {
         return(shiny::div(style = "color: grey; font-size: 85%;",
           "Solo se guardo el estado final (activa \"Guardar historial completo\" para explorar snapshots intermedios)."))
       }
+      ## Rango completo: desde el paso 1 hasta la extincion (primer cruce
+      ## bajo Nc post-shock) o, si la poblacion persiste, hasta el ultimo
+      ## paso real de la corrida. Los pasos sin snapshot guardado muestran
+      ## el snapshot mas cercano.
+      ultimo_paso <- if (!is.na(sim$paso_extincion)) sim$paso_extincion else max(sim$resumen$paso)
       shiny::sliderInput(ns("paso_snapshot"), "Snapshot (paso):",
-                          min = min(pasos_disponibles), max = max(pasos_disponibles),
-                          value = max(pasos_disponibles), step = 1,
+                          min = 1L, max = ultimo_paso,
+                          value = ultimo_paso, step = 1L,
                           animate = shiny::animationOptions(interval = 400))
     })
 
@@ -105,14 +150,7 @@ mod_spatial_server <- function(id, sim_reactive) {
       df <- snapshot_a_df(snap$estado, snap$N, snap$resist, paso = snap$paso)
       shiny::validate(shiny::need(nrow(df) > 0, "La colonia esta extinta en este paso: no hay sitios ocupados."))
 
-      etiqueta <- if (variable == "resist") "Resistencia (z)" else "Nutriente (N)"
-
-      ggplot2::ggplot(df, ggplot2::aes(x = x, y = y, colour = .data[[variable]])) +
-        ggplot2::geom_point(size = 0.7, alpha = 0.75) +
-        ggplot2::scale_colour_viridis_c(option = "plasma", name = etiqueta) +
-        ggplot2::coord_fixed() +
-        ggplot2::labs(title = paste("Paso:", snap$paso), x = "Posicion X", y = "Posicion Y") +
-        tema_hca()
+      plot_snapshot_estatico(snap, variable)
     })
 
     output$fractal_info <- shiny::renderText({
@@ -161,8 +199,13 @@ mod_spatial_server <- function(id, sim_reactive) {
       resultado <- tryCatch({
         shiny::withProgress(message = "Generando animacion (MP4)", value = 0.3, {
           unlink(destino)
+          ## Ejes fijos a la reticula completa para que el video no haga
+          ## zoom conforme crece/decrece la colonia.
+          dims_anim <- dim(hist[[1]]$estado)
           animar_historial_hca(hist, archivo_gif = NULL, archivo_mp4 = destino,
-                                variable = variable)
+                                variable = variable,
+                                nx = if (is.null(dims_anim)) NULL else as.integer(dims_anim[1]),
+                                ny = if (is.null(dims_anim)) NULL else as.integer(dims_anim[2]))
           shiny::setProgress(value = 1)
         })
         destino

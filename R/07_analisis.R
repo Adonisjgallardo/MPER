@@ -236,6 +236,10 @@ graficar_estado_hca <- function(estado, N, resist, archivo,
 #' @param fps cuadros por segundo
 #' @param width,height dimensiones en píxeles de la animación
 #' @param point_size,alpha estética de los puntos
+#' @param nx,ny dimensiones de la retícula; si se proporcionan, TODOS los
+#'        cuadros usan la retícula completa como límites de ejes (sin zoom
+#'        dinámico conforme cambia la colonia). Si son NULL se usa el rango
+#'        de los sitios ocupados (comportamiento histórico).
 #'
 #' @return invisible(NULL)
 animar_historial_hca <- function(historial, archivo_gif = "figuras/evolucion.gif",
@@ -244,7 +248,8 @@ animar_historial_hca <- function(historial, archivo_gif = "figuras/evolucion.gif
                                   fps = 10, width = 600, height = 600,
                                   point_size = 0.6, alpha = 0.7,
                                   mostrar_fractal = TRUE,
-                                  tamanos_fractal = c(2, 4, 5, 8, 10, 16, 20)) {
+                                  tamanos_fractal = c(2, 4, 5, 8, 10, 16, 20),
+                                  nx = NULL, ny = NULL) {
   variable <- match.arg(variable)
 
   df_all <- do.call(rbind, lapply(historial, function(s) {
@@ -254,7 +259,12 @@ animar_historial_hca <- function(historial, archivo_gif = "figuras/evolucion.gif
 
   etiqueta_leyenda <- if (variable == "resist") "Resistencia" else "Nutriente N"
   limites_color <- range(df_all[[variable]], na.rm = TRUE)
-  limites_x <- range(df_all$x); limites_y <- range(df_all$y)
+  if (is.null(nx) || is.null(ny)) {
+    limites_x <- range(df_all$x); limites_y <- range(df_all$y)
+  } else {
+    limites_x <- c(0.5, as.integer(nx) + 0.5)
+    limites_y <- c(0.5, as.integer(ny) + 0.5)
+  }
 
   dir_temp <- tempfile("frames_")
   dir.create(dir_temp)
@@ -279,7 +289,7 @@ animar_historial_hca <- function(historial, archivo_gif = "figuras/evolucion.gif
       ggplot2::geom_point(size = point_size, alpha = alpha) +
       ggplot2::scale_colour_viridis_c(option = "plasma", name = etiqueta_leyenda,
                                      limits = limites_color) +
-      ggplot2::coord_fixed(xlim = limites_x, ylim = limites_y) +
+      ggplot2::coord_fixed(xlim = limites_x, ylim = limites_y, expand = FALSE) +
       ggplot2::labs(title = paste("Paso:", s$paso), subtitle = subtitulo,
                     x = "Posición X", y = "Posición Y") +
       ggplot2::theme_minimal()
