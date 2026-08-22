@@ -20,8 +20,8 @@ if (length(faltantes) > 0) {
 }
 
 ## ---- Lanzar la app -------------------------------------------------
-if (exists("run_hca_app", mode = "function")) {
-  run_hca_app()
+if (exists("run_mper", mode = "function")) {
+  run_mper()
 } else {
-  shiny::shinyApp(ui = hca_ui(), server = hca_server)
+  shiny::shinyApp(ui = mper_ui(), server = mper_server)
 }
