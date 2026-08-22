@@ -13,6 +13,47 @@
 ## no se usa source() aquí para que la app funcione igual como
 ## Shiny app standalone o como paquete instalado.)
 
+#' Parametros efectivos del evento de antibiotico de nivel k
+#'
+#' Escalera de regimenes antibiotic progresivamente mas fuertes y mas
+#' exigentes para la funcionalidad de multirresistencia:
+#'
+#' - Dosis:        `A_max_k      = A_max * factor_dosis^k`
+#' - Seleccion:    `omega2_k     = max(omega2_min, omega2 / factor_exigencia^k)`
+#'                 (tolerancia fenotipica cada vez mas estrecha)
+#' - Optimo:       `theta1_k     = min(1, theta0 + (theta1-theta0) * factor_exigencia^k)`
+#'                 (exige resistencia cercana al techo)
+#' - Mortalidad:   `mort_estres_k = min(1, mort_estres * factor_exigencia^k)`
+#'
+#' El nivel 0 reproduce los parametros base tal cual (evento de
+#' introduccion / escenario sin multirresistencia).
+#'
+#' @param nivel entero >= 0; 0 = antibiotico base
+#' @param A_max,theta0,theta1,omega2,mort_estres valores base del modelo
+#' @param factor_dosis multiplicador geometrico de dosis por nivel (>= 1)
+#' @param factor_exigencia endurecimiento geometrico de la seleccion por
+#'        nivel (>= 1); 1 deja seleccion/mortalidad/optimos intactos
+#' @param omega2_min piso de omega2 para evitar seleccion infinitamente estrecha
+#'
+#' @return lista con `nivel`, `A_max`, `theta1`, `omega2`, `mort_estres`
+parametros_evento_antibiotico <- function(nivel,
+                                           A_max, theta0, theta1, omega2,
+                                           mort_estres,
+                                           factor_dosis = 2,
+                                           factor_exigencia = 1.5,
+                                           omega2_min = 0.001) {
+  k  <- max(0L, as.integer(nivel))
+  fd <- max(1, as.numeric(factor_dosis))
+  fe <- max(1, as.numeric(factor_exigencia))
+  list(
+    nivel       = k,
+    A_max       = A_max * fd^k,
+    theta1      = min(1, theta0 + (theta1 - theta0) * fe^k),
+    omega2      = max(omega2_min, omega2 / fe^k),
+    mort_estres = min(1, mort_estres * fe^k)
+  )
+}
+
 #' Ejecuta la simulación HCA de rescate evolutivo completa
 #'
 #' @param nx,ny dimensiones de la retícula
@@ -29,9 +70,19 @@
 #'        "constante", "pulsos" o "sinusoidal"
 #' @param periodo_temporal periodo (en pasos) de la fluctuación temporal
 #' @param A_max concentración máxima de antibiótico post-introducción
-#' @param multiresistance número de eventos de antibiótico adicionales; sólo
-#'        se disparan sobre los sobrevivientes del primer choque una vez que
-#'        la población recupera el nivel previo al choque
+#' @param multiresistance número de eventos de antibiótico ADICIONALES al
+#'        choque inicial (rango típico 0-10). Cada evento posterior introduce
+#'        un régimen más fuerte y más exigente según `factor_dosis` y
+#'        `factor_exigencia`; se disparan cuando la población recupera su
+#'        pico previo o al vencer `tope_espera_shock`, lo que ocurra primero
+#' @param factor_dosis multiplicador geométrico de concentración (`A_max`)
+#'        aplicado en cada evento adicional (1 = misma dosis siempre)
+#' @param factor_exigencia endurecimiento geométrico de la selección en cada
+#'        evento adicional: omega2 se divide entre él, theta1 se empuja hacia
+#'        1 y mort_estres crece (1 = sin endurecimiento)
+#' @param tope_espera_shock pasos máximos de espera desde el último evento
+#'        para que la población recupere su pico previo antes de disparar el
+#'        siguiente evento de todos modos
 #' @param D_A,delta_A,tasa_dosificacion parámetros de la PDE del antibiótico
 #' @param theta0,theta1,omega2,K_theta parámetros de selección estabilizadora (Caja 3)
 #' @param mort_base,mort_estres,K_mort parámetros de mortalidad
@@ -44,8 +95,11 @@
 #'        app Shiny); se ignora si es NULL
 #'
 #' @return lista: `historial` (snapshots), `resumen` (data.frame por paso,
-#'         incluye g_bar, var_g, z_bar, A_medio, nacimientos, muertes),
-#'         estado final de todos los campos, y `paso_extincion` (o NA)
+#'         incluye g_bar, var_g, z_bar, A_medio, nacimientos, muertes y
+#'         nivel_shock = eventos antibióticos ocurridos hasta ese paso),
+#'         `eventos_shock` (data.frame con paso/nivel/parámetros efectivos/
+#'         tipo de disparo de cada evento), estado final de todos los campos,
+#'         y `paso_extincion` (o NA)
 simular_hca <- function(nx = 100, ny = 100,
                          n_steps = 600,
                          D = 0.20, k = 0.15, dt = 1, N0 = 1.0,
@@ -55,7 +109,9 @@ simular_hca <- function(nx = 100, ny = 100,
                          tipo_plantilla = c("lineal", "uniforme", "radial"),
                          modo_temporal = c("constante", "sinusoidal", "pulsos"),
                          periodo_temporal = 40,
-                         A_max = 1.0, multiresistance = 0L, D_A = 0.15,
+                         A_max = 1.0, multiresistance = 0L,
+                         factor_dosis = 2, factor_exigencia = 1.5,
+                         tope_espera_shock = 150L, D_A = 0.15,
                          delta_A = 0.02, tasa_dosificacion = 0.3,
                          theta0 = 0.1, theta1 = 0.8, omega2 = 0.05, K_theta = 0.3,
                          mort_base = 0.01, mort_estres = 0.9, K_mort = 0.3,
@@ -105,7 +161,8 @@ simular_hca <- function(nx = 100, ny = 100,
     A_medio = numeric(n_steps),
     g_bar = numeric(n_steps), 
     var_g = numeric(n_steps), 
-    z_bar = numeric(n_steps)
+    z_bar = numeric(n_steps),
+    nivel_shock = integer(n_steps)
   )
   paso_extincion <- NA_integer_
 
@@ -114,17 +171,52 @@ simular_hca <- function(nx = 100, ny = 100,
   shock_count <- 0L
   recovery_target <- if (paso_introduccion > 1L) sum(estado) else 0L
   waiting_for_recovery <- FALSE
+  paso_ultimo_evento <- NA_integer_
+  tope_espera_shock <- max(1L, as.integer(tope_espera_shock))
+
+  ## Registro de eventos: preasignado al maximo posible (primer choque +
+  ## `multiresistance` eventos adicionales).
+  max_eventos <- multiresistance + 1L
+  eventos_shock <- data.frame(
+    paso = integer(max_eventos), nivel = integer(max_eventos),
+    tipo = character(max_eventos),
+    A_max_efectivo = numeric(max_eventos), theta1_efectivo = numeric(max_eventos),
+    omega2_efectivo = numeric(max_eventos), mort_estres_efectivo = numeric(max_eventos)
+  )
+  n_eventos <- 0L
+
+  registrar_evento <- function(paso, tipo) {
+    n_eventos <<- n_eventos + 1L
+    pars_ev <<- parametros_evento_antibiotico(
+      n_eventos - 1L,
+      A_max = A_max, theta0 = theta0, theta1 = theta1, omega2 = omega2,
+      mort_estres = mort_estres,
+      factor_dosis = factor_dosis, factor_exigencia = factor_exigencia
+    )
+    eventos_shock[n_eventos, ] <<- list(
+      paso = paso, nivel = pars_ev$nivel, tipo = tipo,
+      A_max_efectivo = pars_ev$A_max, theta1_efectivo = pars_ev$theta1,
+      omega2_efectivo = pars_ev$omega2,
+      mort_estres_efectivo = pars_ev$mort_estres
+    )
+    paso_ultimo_evento <<- paso
+  }
 
   for (paso in seq_len(n_steps)) {
     n_ocupados_antes <- sum(estado)
 
     if (paso == paso_introduccion) {
       shock_count <- 1L
+      registrar_evento(paso, tipo = "introduccion")
       recovery_target <- n_ocupados_antes
-      waiting_for_recovery <- FALSE
-    } else if (multiresistance > 0L && shock_count < multiresistance + 1L) {
-      if (n_ocupados_antes >= recovery_target && !waiting_for_recovery) {
+      waiting_for_recovery <- TRUE   # exigir una caida observada antes de "recuperacion"
+    } else if (multiresistance > 0L && shock_count < multiresistance + 1L &&
+                !is.na(paso_ultimo_evento)) {
+      recuperado   <- n_ocupados_antes >= recovery_target && !waiting_for_recovery
+      vencio_tope  <- (paso - paso_ultimo_evento) >= tope_espera_shock
+      if (recuperado || vencio_tope) {
         shock_count <- shock_count + 1L
+        registrar_evento(paso, tipo = if (recuperado) "recuperacion" else "tope")
         recovery_target <- n_ocupados_antes
         waiting_for_recovery <- TRUE
       } else if (n_ocupados_antes < recovery_target) {
@@ -132,13 +224,19 @@ simular_hca <- function(nx = 100, ny = 100,
       }
     }
 
-    intensidad_antibiotico <- 1.01 ^ (shock_count - 1L)
+    ## Parametros efectivos del antibiotico vigente (nivel = eventos - 1)
+    pars_vigente <- parametros_evento_antibiotico(
+      max(0L, shock_count - 1L),
+      A_max = A_max, theta0 = theta0, theta1 = theta1, omega2 = omega2,
+      mort_estres = mort_estres,
+      factor_dosis = factor_dosis, factor_exigencia = factor_exigencia
+    )
 
     # ---- Campos continuos ----
     N <- actualizar_nutriente(N, estado, D = D, k = k, dt = dt, N_half = N_half)
 
     A_obj <- antibiotico_objetivo(plantilla_A, paso, paso_introduccion,
-                                   A_max = A_max * intensidad_antibiotico,
+                                   A_max = pars_vigente$A_max,
                                    modo_temporal = modo_temporal,
                                    periodo = periodo_temporal)
     A <- actualizar_antibiotico(A, A_obj, D_A = D_A, delta_A = delta_A, dt = dt,
@@ -150,12 +248,12 @@ simular_hca <- function(nx = 100, ny = 100,
     # ---- CA: crecimiento + muerte con selección estabilizadora ----
     res_ca <- crecer_colonia(estado, g, e, N, A,
                               theta0 = theta0,
-                              theta1 = theta1 * intensidad_antibiotico,
-                              omega2 = omega2,
+                              theta1 = pars_vigente$theta1,
+                              omega2 = pars_vigente$omega2,
                               K_theta = K_theta,
                               N_umbral = N_umbral, p_max = p_max, N_half = N_half,
                               mort_base = mort_base,
-                              mort_estres = mort_estres * intensidad_antibiotico,
+                              mort_estres = pars_vigente$mort_estres,
                               K_mort = K_mort,
                               mutacion_sd = mutacion_sd, sigma_e = sigma_e)
     estado <- res_ca$estado; g <- res_ca$g; e <- res_ca$e
@@ -171,7 +269,8 @@ simular_hca <- function(nx = 100, ny = 100,
       N_medio = mean(N), A_medio = mean(A),
       g_bar = if (n_ocupados > 0) mean(g_vivos) else NA_real_,
       var_g = if (n_ocupados > 1) var(g_vivos) else NA_real_,
-      z_bar = if (n_ocupados > 0) mean(z_vivos) else NA_real_
+      z_bar = if (n_ocupados > 0) mean(z_vivos) else NA_real_,
+      nivel_shock = shock_count
     )
 
     if (is.na(paso_extincion) && n_ocupados < Nc && paso > paso_introduccion) {
@@ -207,11 +306,19 @@ simular_hca <- function(nx = 100, ny = 100,
        paso_introduccion = paso_introduccion,
        multiresistance = multiresistance,
        shock_count = shock_count,
+       eventos_shock = if (n_eventos > 0) {
+         eventos_shock[seq_len(n_eventos), , drop = FALSE]
+       } else {
+         eventos_shock[0, , drop = FALSE]
+       },
        paso_extincion = paso_extincion,
        parametros = list(theta0 = theta0, theta1 = theta1, omega2 = omega2,
                           sigma_e = sigma_e, mutacion_sd = mutacion_sd,
                           Nc = Nc, g_inicial = g_inicial,
-                          multiresistance = multiresistance))
+                          multiresistance = multiresistance,
+                          factor_dosis = factor_dosis,
+                          factor_exigencia = factor_exigencia,
+                          tope_espera_shock = tope_espera_shock))
 }
 
 #' Ejecuta varias réplicas independientes (mismos parámetros, semillas

@@ -24,6 +24,9 @@ simular_hca(
   periodo_temporal = 40,
   A_max = 1,
   multiresistance = 0L,
+  factor_dosis = 2,
+  factor_exigencia = 1.5,
+  tope_espera_shock = 150L,
   D_A = 0.15,
   delta_A = 0.02,
   tasa_dosificacion = 0.3,
@@ -67,9 +70,22 @@ la retícula: la población crece libre (fase "silvestre").}
 
 \item{A_max}{concentración máxima de antibiótico post-introducción}
 
-\item{multiresistance}{número de eventos de antibiótico adicionales; sólo
-se disparan sobre los sobrevivientes del primer choque una vez que
-la población recupera el nivel previo al choque}
+\item{multiresistance}{número de eventos de antibiótico ADICIONALES al
+choque inicial (rango típico 0-10). Cada evento posterior introduce
+un régimen más fuerte y más exigente según \code{factor_dosis} y
+\code{factor_exigencia}; se disparan cuando la población recupera su
+pico previo o al vencer \code{tope_espera_shock}, lo que ocurra primero}
+
+\item{factor_dosis}{multiplicador geométrico de concentración (\code{A_max})
+aplicado en cada evento adicional (1 = misma dosis siempre)}
+
+\item{factor_exigencia}{endurecimiento geométrico de la selección en cada
+evento adicional: omega2 se divide entre él, theta1 se empuja hacia
+1 y mort_estres crece (1 = sin endurecimiento)}
+
+\item{tope_espera_shock}{pasos máximos de espera desde el último evento
+para que la población recupere su pico previo antes de disparar el
+siguiente evento de todos modos}
 
 \item{D_A, delta_A, tasa_dosificacion}{parámetros de la PDE del antibiótico}
 
@@ -90,8 +106,11 @@ app Shiny); se ignora si es NULL}
 }
 \value{
 lista: \code{historial} (snapshots), \code{resumen} (data.frame por paso,
-incluye g_bar, var_g, z_bar, A_medio, nacimientos, muertes),
-estado final de todos los campos, y \code{paso_extincion} (o NA)
+incluye g_bar, var_g, z_bar, A_medio, nacimientos, muertes y
+nivel_shock = eventos antibióticos ocurridos hasta ese paso),
+\code{eventos_shock} (data.frame con paso/nivel/parámetros efectivos/
+tipo de disparo de cada evento), estado final de todos los campos,
+y \code{paso_extincion} (o NA)
 }
 \description{
 Ejecuta la simulación HCA de rescate evolutivo completa

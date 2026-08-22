@@ -27,14 +27,36 @@ mod_pop_server <- function(id, sim_reactive, sigma_g2, sigma_e2, Wmax) {
       df <- sim$resumen
       intro <- sim$paso_introduccion
 
-      ggplot2::ggplot(df, ggplot2::aes(x = paso)) +
+      ## Marcadores de eventos antibioticos (introduccion + multirresistencia)
+      eventos <- if (!is.null(sim$eventos_shock) && nrow(sim$eventos_shock) > 0) {
+        subset(sim$eventos_shock, tipo != "introduccion")
+      } else {
+        NULL
+      }
+
+      p <- ggplot2::ggplot(df, ggplot2::aes(x = paso)) +
         ggplot2::geom_line(ggplot2::aes(y = n_ocupados, colour = "Poblacion (N)"), linewidth = 1.1) +
         ggplot2::geom_line(ggplot2::aes(y = n_frente, colour = "Celulas proliferativas"),
                             linewidth = 0.7, linetype = "dashed") +
         ggplot2::geom_vline(xintercept = intro, linetype = "dashed", colour = "firebrick") +
         ggplot2::annotate("text", x = intro, y = max(df$n_ocupados, na.rm = TRUE),
                            label = "  introduccion antibiotico", hjust = 0, vjust = 1,
-                           colour = "firebrick", size = 3.2) +
+                           colour = "firebrick", size = 3.2)
+
+      if (!is.null(eventos)) {
+        y_tope <- max(df$n_ocupados, na.rm = TRUE)
+        p <- p +
+          ggplot2::geom_vline(data = eventos,
+                              ggplot2::aes(xintercept = paso, linetype = tipo),
+                              colour = "darkorange3", linewidth = 0.8) +
+          ggplot2::geom_text(data = eventos,
+                             ggplot2::aes(x = paso, y = y_tope,
+                                          label = paste0(" nivel ", nivel + 1L, " (", tipo, ")")),
+                             hjust = -0.05, vjust = 1.4,
+                             colour = "darkorange3", size = 3.1, inherit.aes = FALSE)
+      }
+
+      p <- p +
         ggplot2::scale_colour_manual(values = c("Poblacion (N)" = "#1b6ca8",
                                                  "Celulas proliferativas" = "#4caf50")) +
         ggplot2::labs(y = "Numero de sitios ocupados", x = "Paso de tiempo",
@@ -44,6 +66,7 @@ mod_pop_server <- function(id, sim_reactive, sigma_g2, sigma_e2, Wmax) {
                       else "Poblacion se mantuvo sobre el umbral critico Nc durante toda la simulacion",
                       colour = NULL) +
         tema_hca()
+      p
     })
 
     output$analytical_overlay <- shiny::renderPlot({

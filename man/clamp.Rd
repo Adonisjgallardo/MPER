@@ -2,10 +2,10 @@
 % Please edit documentation in R/utils.R
 \name{clamp}
 \alias{clamp}
-\title{Recorta un valor al rango \link{lo, hi}}
+\title{Recorta un valor al rango \verb{[lo, hi]}}
 \usage{
 clamp(x, lo, hi)
 }
 \description{
-Recorta un valor al rango \link{lo, hi}
+Recorta un valor al rango \verb{[lo, hi]}
 }

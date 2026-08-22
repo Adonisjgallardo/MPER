@@ -32,7 +32,7 @@ Nt_analitico_qg <- function(t, N0, Wmax, omega2, sigma_g2, sigma_e2, d0) {
     exp(-(d0^2) / (2 * V) * (1 - (1 - phi)^(2 * t)) / (1 - (1 - phi)^2))
 }
 
-#' Trayectoria analítica del valor genético medio E[g_bar_t]
+#' Trayectoria analítica del valor genético medio `E[g_bar_t]`
 #' (ecuación B3.2, recursión de Lande con varianza genética constante).
 #' Con k=0 (óptimo estático tras el shock) se reduce al acercamiento
 #' geométrico de g_bar al óptimo.

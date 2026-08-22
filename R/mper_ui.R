@@ -45,7 +45,13 @@ mper_ui <- function() {
         shiny::h5("Choque de antibiótico"),
         shiny::sliderInput("paso_introduccion", "Paso de introducción", 0, 500, 150, step = 10),
         shiny::sliderInput("A_max", "Concentración máxima (A_max)", 0, 5, 1.0, step = 0.1),
-        shiny::sliderInput("multiresistance", "Eventos multirresistencia", 0, 10, 0, step = 1),
+        shiny::sliderInput("multiresistance", "Eventos antibióticos adicionales (cada uno más fuerte)", 0, 10, 0, step = 1),
+        shiny::conditionalPanel(
+          condition = "input.multiresistance > 0",
+          shiny::sliderInput("factor_dosis", "Factor de dosis por evento (×A_max)", 1, 4, 2, step = 0.25),
+          shiny::sliderInput("factor_exigencia", "Factor de exigencia por evento (selección más estrecha y mortal)", 1, 3, 1.5, step = 0.1),
+          shiny::sliderInput("tope_espera_shock", "Tope de espera entre eventos (pasos)", 10, 500, 150, step = 10)
+        ),
         shiny::selectInput("tipo_plantilla", "Gradiente espacial",
                             choices = c("Lineal" = "lineal", "Uniforme" = "uniforme", "Radial" = "radial"),
                             selected = "lineal"),

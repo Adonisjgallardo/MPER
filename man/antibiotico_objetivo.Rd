@@ -17,7 +17,7 @@ antibiotico_objetivo(
 )
 }
 \arguments{
-\item{plantilla}{matriz espacial en \link{0,1} (de \code{crear_plantilla_antibiotico})}
+\item{plantilla}{matriz espacial en \verb{[0,1]} (de \code{crear_plantilla_antibiotico})}
 
 \item{paso}{paso de tiempo actual}
 

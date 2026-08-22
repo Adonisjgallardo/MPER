@@ -4,7 +4,7 @@
 ## parte del motor de simulacion en si).
 ## ============================================================
 
-#' Recorta un valor al rango [lo, hi]
+#' Recorta un valor al rango `[lo, hi]`
 clamp <- function(x, lo, hi) pmin(pmax(x, lo), hi)
 
 #' Tema ggplot compartido por todos los graficos de la app, para
@@ -76,6 +76,9 @@ recolectar_parametros_sim <- function(input) {
     modo_temporal = input$modo_temporal,
     periodo_temporal = input$periodo_temporal,
     A_max = input$A_max, multiresistance = input$multiresistance,
+    factor_dosis = input$factor_dosis,
+    factor_exigencia = input$factor_exigencia,
+    tope_espera_shock = input$tope_espera_shock,
     D_A = input$D_A, delta_A = input$delta_A,
     tasa_dosificacion = input$tasa_dosificacion,
     theta0 = input$theta0, theta1 = input$theta1,

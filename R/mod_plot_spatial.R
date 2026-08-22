@@ -13,7 +13,7 @@
 #'
 #' A diferencia de dejar que ggplot elija los limites a partir de los
 #' sitios ocupados, aqui siempre se usa la reticula entera
-#' [0.5, nx+0.5] x [0.5, ny+0.5], de modo que la posicion y el tamano
+#' `[0.5, nx+0.5] x [0.5, ny+0.5]`, de modo que la posicion y el tamano
 #' del grafico NO cambian entre snapshots ni durante la reproduccion.
 #'
 #' @param snap lista con `estado`, `N`, `resist`, `paso` (un snapshot

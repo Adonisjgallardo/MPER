@@ -2,7 +2,7 @@
 % Please edit documentation in R/06_genetica_cuantitativa.R
 \name{gbar_analitico_qg}
 \alias{gbar_analitico_qg}
-\title{Trayectoria analítica del valor genético medio E\link{g_bar_t}
+\title{Trayectoria analítica del valor genético medio \code{E[g_bar_t]}
 (ecuación B3.2, recursión de Lande con varianza genética constante).
 Con k=0 (óptimo estático tras el shock) se reduce al acercamiento
 geométrico de g_bar al óptimo.}
@@ -20,7 +20,7 @@ seguido de óptimo estático; >0 para "cambio gradual")}
 \item{g_bar0}{valor genético medio inicial}
 }
 \description{
-Trayectoria analítica del valor genético medio E\link{g_bar_t}
+Trayectoria analítica del valor genético medio \code{E[g_bar_t]}
 (ecuación B3.2, recursión de Lande con varianza genética constante).
 Con k=0 (óptimo estático tras el shock) se reduce al acercamiento
 geométrico de g_bar al óptimo.

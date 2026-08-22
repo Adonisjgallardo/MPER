@@ -79,7 +79,7 @@ crear_plantilla_antibiotico <- function(nx, ny,
 #' espacial escalada por A_max y por una modulación temporal
 #' después (heterogeneidad temporal: fluctuación).
 #'
-#' @param plantilla matriz espacial en [0,1] (de `crear_plantilla_antibiotico`)
+#' @param plantilla matriz espacial en `[0,1]` (de `crear_plantilla_antibiotico`)
 #' @param paso paso de tiempo actual
 #' @param paso_introduccion paso en el que ocurre el CAMBIO ABRUPTO
 #' @param A_max concentración máxima post-introducción

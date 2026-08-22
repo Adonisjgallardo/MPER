@@ -61,6 +61,13 @@ A few parameters are especially important for interpreting the results:
 - `mutacion_sd`: standard deviation of the additive mutation step during division.
 - `paso_introduccion`: time step at which the antibiotic shock is introduced.
 - `Nc`: population threshold used to define quasi-extinction for persistence analysis.
+- `multiresistance`: number of ADDITIONAL antibiotic events (each one harsher than the previous).
+  Event `k` scales the dose geometrically (`A_max * factor_dosis^k`) and hardens selection
+  (`omega2` shrinks, `theta1` is pushed toward 1, `mort_estres` grows, all governed by
+  `factor_exigencia`). Events fire when the population recovers its previous peak OR when
+  `tope_espera_shock` steps elapse since the last event. The simulation result includes an
+  `eventos_shock` table (step, level, effective parameters, trigger type) and a per-step
+  `nivel_shock` column in `resumen`.
 
 These parameters control the balance between growth, stress, adaptation, and demographic decline.
 

@@ -20,7 +20,9 @@ animar_historial_hca(
   point_size = 0.6,
   alpha = 0.7,
   mostrar_fractal = TRUE,
-  tamanos_fractal = c(2, 4, 5, 8, 10, 16, 20)
+  tamanos_fractal = c(2, 4, 5, 8, 10, 16, 20),
+  nx = NULL,
+  ny = NULL
 )
 }
 \arguments{
@@ -38,6 +40,11 @@ animar_historial_hca(
 \item{width, height}{dimensiones en píxeles de la animación}
 
 \item{point_size, alpha}{estética de los puntos}
+
+\item{nx, ny}{dimensiones de la retícula; si se proporcionan, TODOS los
+cuadros usan la retícula completa como límites de ejes (sin zoom
+dinámico conforme cambia la colonia). Si son NULL se usa el rango
+de los sitios ocupados (comportamiento histórico).}
 }
 \value{
 invisible(NULL)
